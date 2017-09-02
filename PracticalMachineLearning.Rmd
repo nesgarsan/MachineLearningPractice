@@ -1,0 +1,140 @@
+---
+title: "Practical Machine Learning"
+
+date: "2 de septiembre de 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Assignment
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+
+## Data Sources
+The training and test data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The original source of the data is: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## Project Objectives
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+Your submission should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. Please constrain the text of the writeup to < 2000 words and the number of figures to be less than 5. It will make it easier for the graders if you submit a repo with a gh-pages branch so the HTML page can be viewed online (and you always want to make it easy on graders :-). You should also apply your machine learning algorithm to the 20 test cases available in the test data above. Please submit your predictions in appropriate format to the programming assignment for automated grading. See the programming assignment for additional details.
+
+# Code and Results
+
+## Reproduceability
+Installing packages, loading libraries, and setting the seed.
+
+```{r, echo=TRUE}
+library(caret)
+library(randomForest)
+library(rpart) 
+library(rpart.plot)
+set.seed(1234)
+```
+
+
+## Loading data and cleaning
+
+Loading the training data set replacing all missing with "NA"
+```{r, echo=TRUE}
+trainUrl<-"http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+trainingset <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+```
+
+Loading the testing data set replacing all missing with "NA"
+```{r, echo=TRUE}
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+testingset <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+```
+
+Delete columns with all missing values
+```{r, echo=TRUE}
+trainingset<-trainingset[,colSums(is.na(trainingset)) == 0]
+testingset <-testingset[,colSums(is.na(testingset)) == 0]
+```
+
+Drop irrelevant variables: user_name, raw_timestamp_part_1, raw_timestamp_part_,2 cvtd_timestamp, new_window, and  num_window (columns 1 to 7).
+```{r, echo=TRUE}
+trainingset   <-trainingset[,-c(1:7)]
+testingset <-testingset[,-c(1:7)]
+```
+
+## Partitioning the training data set to allow cross-validation
+
+The training data set contains 53 variables and 19622 obs.
+The testing data set contains 53 variables and 20 obs.
+In order to perform cross-validation, the training data set is partionned into 2 sets: subTraining (75%) and subTest (25%).
+This will be performed using random subsampling without replacement.
+
+```{r, echo=TRUE}
+subsamples <- createDataPartition(y=trainingset$classe, p=0.75, list=FALSE)
+subTraining <- trainingset[subsamples, ] 
+subTesting <- trainingset[-subsamples, ]
+```
+
+
+## Using Decision Tree
+
+```{r, echo=TRUE}
+model1 <- rpart(classe ~ ., data=subTraining, method="class")
+
+# Predicting:
+prediction1 <- predict(model1, subTesting, type = "class")
+
+# Plot of the Decision Tree
+rpart.plot(model1, main="Classification Tree", extra=102, under=TRUE, faclen=0)
+
+```
+
+```{r, echo=TRUE}
+# Test results on our subTesting data set:
+confusionMatrix(prediction1, subTesting$classe)
+```
+
+
+## Using Random Forest
+
+```{r, echo=TRUE}
+model2 <- randomForest(classe ~. , data=subTraining, method="class")
+
+# Predicting:
+prediction2 <- predict(model2, subTesting, type = "class")
+
+# Test results on subTesting data set:
+confusionMatrix(prediction2, subTesting$classe)
+```
+
+## Conclusion
+
+Accuracy for Random Forest model was 0.995 compared to 0.739 for Decision Tree model. Random Forest algorithm performed better than Decision Trees, so, the random Forest model is choosen.
+
+
+## Submission
+
+predict outcome levels on the original Testing data set using Random Forest algorithm
+```{r, echo=TRUE}
+predictfinal <- predict(model2, testingset, type="class")
+predictfinal
+```
+
+```{r, echo=TRUE}
+# Write files for submission
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(predictfinal)
+```
+
